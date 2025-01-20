@@ -2,6 +2,9 @@
 
 namespace Opensaucesystems\Lxd;
 
+use GuzzleHttp\Psr7\Uri;
+use Http\Discovery\Psr18ClientDiscovery;
+use Http\Factory\Guzzle\StreamFactory;
 use Opensaucesystems\Lxd\Exception\InvalidEndpointException;
 use Opensaucesystems\Lxd\Exception\ClientConnectionException;
 use Opensaucesystems\Lxd\Exception\ServerException;
@@ -13,9 +16,10 @@ use Http\Client\Common\Plugin;
 use Http\Client\Common\PluginClient;
 use Http\Client\HttpClient;
 use Http\Discovery\HttpClientDiscovery;
-use Http\Discovery\MessageFactoryDiscovery;
 use Http\Discovery\UriFactoryDiscovery;
 use Http\Message\MessageFactory;
+use Nyholm\Psr7\Factory\Psr17Factory;
+use GuzzleHttp\Psr7\HttpFactory;
 
 class Client
 {
@@ -66,7 +70,7 @@ class Client
     public function __construct(HttpClient $httpClient = null, $apiVersion = null, $url = null)
     {
         $this->httpClient     = $httpClient ?: HttpClientDiscovery::find();
-        $this->messageFactory = MessageFactoryDiscovery::find();
+        $this->messageFactory = new Psr17Factory();
         $this->apiVersion     = $apiVersion ?: '1.0';
         $this->url            = $url ?: 'https://127.0.0.1:8443';
 
@@ -96,7 +100,7 @@ class Client
         $this->removePlugin(PathPrepend::class);
         $this->removePlugin(PathTrimEnd::class);
 
-        $this->addPlugin(new Plugin\AddHostPlugin(UriFactoryDiscovery::find()->createUri($this->url)));
+        $this->addPlugin(new Plugin\AddHostPlugin(new Uri($this->url)));
         $this->addPlugin(new PathPrepend(sprintf('/%s', $this->getApiVersion())));
         $this->addPlugin(new PathTrimEnd());
     }
@@ -132,12 +136,15 @@ class Client
      */
     public function getHttpClient()
     {
+
         if ($this->httpClientModified) {
             $this->httpClientModified = false;
+            $streamFactory = new HttpFactory();
 
             $this->pluginClient = new HttpMethodsClient(
                 new PluginClient($this->httpClient, $this->plugins),
-                $this->messageFactory
+                $this->messageFactory,
+                $streamFactory
             );
         }
         return $this->pluginClient;
